@@ -1,2 +1,2 @@
 # MetaParser
-parsers for metalyceum
+Parser for MetaLyceum

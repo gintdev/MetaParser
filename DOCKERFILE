@@ -1,0 +1,19 @@
+FROM python:3.11-slim
+
+# Keep output unbuffered
+ENV PYTHONUNBUFFERED=1
+
+WORKDIR /app
+
+# Install system deps (if needed) and Python requirements
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy project files
+COPY . /app
+
+# If you want to bake a specific .env into the image, uncomment the next line
+# COPY .env /app/.env
+
+# Default command to run the main script
+CMD ["python", "app/main.py"]

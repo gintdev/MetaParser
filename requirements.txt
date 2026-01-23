@@ -1,0 +1,31 @@
+# Парсинг и веб-скрапинг
+beautifulsoup4>=4.9.3
+selenium>=4.0.0
+lxml>=4.9.0
+requests>=2.25.1
+random-user-agent>=1.0.1
+
+# Работа с Яндекс.Диском
+yadisk>=1.2.14
+
+# Управление конфигурацией
+environs>=9.5.0
+
+# Управление временем и датами
+python-dateutil>=2.8.2
+
+# Драйвер для Chrome (опционально)
+webdriver-manager>=4.0.0
+
+# Дополнительные утилиты
+tqdm>=4.65.0  # для отображения прогресс-бара 
+
+# Pydantic
+pydantic==2.10.2
+pydantic-settings==2.6.1
+pydantic_core==2.27.1
+
+SQLAlchemy[asyncio]==2.0.36
+asyncpg==0.29.0
+psycopg2-binary==2.9.9
+PyPDF2==4.0.1
