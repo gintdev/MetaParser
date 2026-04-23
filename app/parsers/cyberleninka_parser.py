@@ -54,7 +54,7 @@ class CyberleninkaParser(ABCParser):
 
         abstract = soup.find("p", {"itemprop": "description"}).text.strip() if soup.find("p", {"itemprop": "description"}) else ""
         
-        filename = "" # Как на яндекс дсике
+        filename = f"{settings.YADISK_FOLDER}/Cyberleninka/{title}.pdf" # Как на яндекс дсике
 
         download_url = "https://cyberleninka.ru/article/n/" + soup.find("a", title = 'Скачать')["href"]
 

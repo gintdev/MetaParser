@@ -56,14 +56,7 @@ class ABCParser(ABC):
                 with requests.get(download_url, stream=True, timeout=60) as resp:
                     resp.raise_for_status()
 
-                    # Determine filename: prefer explicit filename, then Content-Disposition, then URL or title
-                    filename = getattr(article.data, 'title', 'unknown_file') 
-                    source = getattr(article.data, 'source', 'unknown_source')
-                    # Ensure filename has .pdf extension
-                    if not filename.lower().endswith('.pdf'):
-                        filename = f"{filename}.pdf"
-
-                    local_file_path = os.path.join(local_path, filename)
+                    local_file_path = os.path.join(local_path, getattr(article.data, 'title', 'unknown_file') + '.pdf')
                     with open(local_file_path, 'wb') as f:
                         for chunk in resp.iter_content(chunk_size=8192):
                             if chunk:
@@ -76,8 +69,24 @@ class ABCParser(ABC):
                 if not y.check_token():
                     print("Токен Яндекс.Диска недействителен.")
                     return
-                dest_file_path = f"{settings.YADISK_FOLDER}/{source}/{filename}".replace('//', '/')
-                y.upload(local_file_path, dest_file_path)
+                dest_file_path =  getattr(article.data, 'filename', 'unknown_file')
+                # Если файл уже есть на Яндекс.Диске — пропускаем статью
+                try:
+                    if y.exists(dest_file_path):
+                        print(f'Файл уже существует на Яндекс.Диске: {dest_file_path} — пропускаю статью.')
+                        return
+                except Exception as e:
+                    # Если проверка наличия не удалась, попробуем загрузить и обработаем конфликт ниже
+                    print(f'Не удалось проверить существование файла на Диске: {e}')
+
+                try:
+                    y.upload(local_file_path, dest_file_path)
+                except yadisk.exceptions.PathExistsError:
+                    print(f'Файл уже существует на Яндекс.Диске: {dest_file_path} — пропускаю статью.')
+                    return
+                except yadisk.exceptions.ConflictError:
+                    print(f'Конфликт при загрузке (возможно, файл существует): {dest_file_path} — пропускаю статью.')
+                    return
 
                 print(f'Файл {local_file_path} загружен на Диск в {dest_file_path}')
 
@@ -95,7 +104,7 @@ class ABCParser(ABC):
                         'published_year': getattr(article.data, 'published_year', None),
                         'views_count': getattr(article.data, 'views_count', 0),
                         'downloads_count': getattr(article.data, 'downloads_count', 0),
-                        'file_name': filename,
+                        'file_name': getattr(article.data, 'filename', 'unknown_file'),
                         'download_url': getattr(article.data, 'download_url', None),
                         'parsed_at': getattr(article.data, 'parsed_at', None),
                     }
