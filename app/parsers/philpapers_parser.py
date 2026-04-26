@@ -2,12 +2,20 @@ from parsers.abc_parser import *
 from bs4 import BeautifulSoup
 from requests import get as get_text
 from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager
 import os
+import time
 from datetime import datetime
+from article import ArticleData, ParsedArticle
 import re
+import asyncio
 
 class PhilpapersParser(ABCParser):
-    def parse(self, url:str) -> ParsedArticle:
+    async def parse(self, url:str) -> ParsedArticle:
+        return await asyncio.to_thread(self._parse_sync, url)
+
+    def _parse_sync(self, url:str) -> ParsedArticle:
         options = webdriver.ChromeOptions()
         options.add_argument('--headless=new')
         
@@ -20,7 +28,7 @@ class PhilpapersParser(ABCParser):
         options.add_argument('--no-sandbox')
         options.add_argument('--disable-gpu')
 
-        driver = webdriver.Chrome(options=options)
+        driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
         driver.execute_cdp_cmd('Page.addScriptToEvaluateOnNewDocument', {
             'source': 'Object.defineProperty(navigator, "webdriver", {get: () => false})'
         })
@@ -77,8 +85,8 @@ class PhilpapersParser(ABCParser):
             title=title,
             source = "PhilPapers",
             abstract=abstract,
-            author=authors,
-            keywods=keywords,
+            authors=authors,
+            keywords=keywords,
             published_year=published_year,
             views_count=views_count,
             downloads_count=downloads_count,
@@ -107,5 +115,5 @@ class PhilpapersParser(ABCParser):
         with open(filepath, 'w', encoding='utf-8') as f:
             f.write(html_content)
         
-        print(f"✓ HTML сохранен: {filepath}")
+        print(f"  HTML сохранен: {filepath}")
         print(f"  URL: {url}")

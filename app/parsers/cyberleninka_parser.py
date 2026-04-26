@@ -2,14 +2,23 @@ from parsers.abc_parser import *
 from bs4 import BeautifulSoup
 from requests import get as get_text
 from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager
+import time
+import datetime
+from article import ArticleData, ParsedArticle
+import asyncio
 
 class CyberleninkaParser(ABCParser):
-    def parse(self, url:str) -> ParsedArticle:
+    async def parse(self, url:str) -> ParsedArticle:
+        return await asyncio.to_thread(self._parse_sync, url)
+
+    def _parse_sync(self, url:str) -> ParsedArticle:
 
         options = webdriver.ChromeOptions()
         options.add_argument('--headless=new')
 
-        driver = webdriver.Chrome(options=options)
+        driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
         driver.get(url)
         time.sleep(3)
         html_content = driver.page_source
@@ -67,8 +76,8 @@ class CyberleninkaParser(ABCParser):
             title=title,
             source = "Cyberleninka",
             abstract=abstract,
-            author=authors,
-            keywods=keywords,
+            authors=authors,
+            keywords=keywords,
             published_year=published_year,
             views_count=views_count,
             downloads_count=downloads_count,

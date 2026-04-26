@@ -1,11 +1,9 @@
 from abc import ABC, abstractmethod
-import threading
-import time
-import datetime
-from typing import List, Optional
+import asyncio
 from dataclasses import dataclass
 import yadisk
 from config import settings
+from article import ArticleData, ParsedArticle
 import os
 import requests
 # Import SQLAlchemy on demand
@@ -13,32 +11,35 @@ from sqlalchemy import create_engine, MetaData, Table, Column, Integer, String, 
 import json
 import httpx
 
-@dataclass
-class ArticleData:
-    id: int
-    title: str
-    source: str
-    abstract: str
-    author: List[str]
-    keywods: List[str]
-    published_year: int
-    views_count: int
-    downloads_count:int
-    filename: str
-    download_url: str
-    parsed_at: datetime.datetime
-
-@dataclass 
-class ParsedArticle:
-    data: ArticleData
-    pdf_content: bytes
-
 class ABCParser(ABC):
+    links_path: str
+
+    def __init__(self, links_path: str):
+        self.links_path = links_path
+
+    async def run(self, local_path: str = "./downloads"):
+        if not os.path.exists(self.links_path):
+            print(f"Файл {self.links_path} не найден!")
+            return
+        
+        with open(self.links_path, 'r', encoding='utf-8') as f:
+            links = [line.strip() for line in f if line.strip()]
+            
+            for link in links:
+                try:
+                    article = await self.parse(link)
+                    await self.save(article, local_path)
+                except Exception as e:
+                    print(f"Ошибка при обработке ссылки {link}: {e}")
+
     @abstractmethod
-    def parse(self, url: str) -> ParsedArticle:
+    async def parse(self, url: str) -> ParsedArticle:
         raise NotImplementedError("Subclasses must implement this method")
     
-    def save(self, article: ParsedArticle, local_path:str):
+    async def save(self, article: ParsedArticle, local_path:str):
+        await asyncio.to_thread(self._save_sync, article, local_path)
+
+    def _save_sync(self, article: ParsedArticle, local_path:str):
         # Save metadata to postgres, download pdf to local_path, then upload to yadisk
             token = settings.YADISK_TOKEN
 
@@ -92,8 +93,8 @@ class ABCParser(ABC):
 
                 try:
                     
-                    authors = getattr(article.data, 'author', []) or []
-                    keywords = getattr(article.data, 'keywods', []) or []
+                    authors = getattr(article.data, 'authors', []) or []
+                    keywords = getattr(article.data, 'keywords', []) or []
 
                     insert_values = {
                         'title': getattr(article.data, 'title', None),
