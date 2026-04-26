@@ -4,6 +4,7 @@ selenium>=4.0.0
 lxml>=4.9.0
 requests>=2.25.1
 random-user-agent>=1.0.1
+playwright>=1.53.0
 
 # Работа с Яндекс.Диском
 yadisk>=1.2.14
@@ -29,5 +30,3 @@ SQLAlchemy[asyncio]==2.0.36
 asyncpg==0.29.0
 psycopg2-binary==2.9.9
 PyPDF2>=3.0.1
-
-undetected-chromedriver>=3.2.6
