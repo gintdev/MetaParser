@@ -10,16 +10,18 @@ from datetime import datetime
 from article import ArticleData, ParsedArticle
 import re
 import asyncio
+import random
 
 class JMPhilParser(ABCParser):
     async def parse(self, url:str) -> ParsedArticle:
-        return await asyncio.to_thread(self._parse_sync, url)
+        try:
+            return await asyncio.to_thread(self._parse_sync, url)
+        except Exception as e:
+            self.logger.error(f"Ошибка при парсинге статьи по ссылке {url}:\n{e}")
 
     def _parse_sync(self, url: str) -> ParsedArticle:
         options = webdriver.ChromeOptions()
         options.add_argument('--headless=new')
-        
-        # Добавляем реалистичные заголовки для обхода блокировки
         options.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
         options.add_argument('--disable-blink-features=AutomationControlled')
         options.add_experimental_option("excludeSwitches", ["enable-automation"])
@@ -32,15 +34,25 @@ class JMPhilParser(ABCParser):
         driver.execute_cdp_cmd('Page.addScriptToEvaluateOnNewDocument', {
             'source': 'Object.defineProperty(navigator, "webdriver", {get: () => false})'
         })
-        driver.get(url)
-        time.sleep(7)
-        html_content = driver.page_source
-        soup = BeautifulSoup(html_content, 'html.parser')
-        title = soup.find("h1").text.strip()
-        abstract_element = soup.find("h3", text = "Abstract")
-        abstract = abstract_element.find_next_sibling("p").text.strip() if abstract_element else ""
 
-        authors = [ae.text.strip() for ae in soup.find_all("span", itemprop = "name")]
+        driver.get(url)
+        time.sleep(random.uniform(7,11))
+        html_content = driver.page_source
+
+        soup = BeautifulSoup(html_content, 'html.parser')
+
+        title = soup.find("h1").text.strip()
+
+        abstract_element = soup.find("h3", text = "Abstract")
+        abstract_element_siblings = abstract_element.find_next_siblings() if abstract_element else []
+        abstract = ""
+        for sibling in abstract_element_siblings:
+            if "Keywords:" in sibling.text.strip():
+                break
+            if(len(abstract) <  len(sibling.text.strip())):
+                abstract = sibling.text.strip()
+
+        author = soup.find("span", itemprop = "name").text.strip()
 
         keyword_element = soup.find("strong", string=re.compile(r"^\s*Keywords\s*:?\s*$", re.IGNORECASE))
         keywords = []
@@ -88,21 +100,13 @@ class JMPhilParser(ABCParser):
         parsed_at = datetime.now().isoformat()
         source = "JMPhil"
         filename = f"{settings.YADISK_FOLDER}/{source}/{title}.pdf"
-        print(title)
-        print(abstract)
-        print(authors)
-        print(keywords)
-        print(published_year)
-        print(views_count)
-        print(download_count)
-        print(download_url)
         
         article_data = ArticleData(
             id=0,
             title=title,
             source=source,
             abstract=abstract,
-            authors=authors,
+            authors=[author],
             keywords=keywords,
             published_year=published_year,
             views_count=views_count,
@@ -111,6 +115,10 @@ class JMPhilParser(ABCParser):
             download_url=download_url,
             parsed_at=parsed_at
         )
+
+        self.logger.info(f'Статья "{title}" успешно собрана. Источник: {source}')
+
+        
         return ParsedArticle(
             data=article_data,
             pdf_content=b""

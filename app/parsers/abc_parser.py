@@ -10,27 +10,29 @@ import requests
 from sqlalchemy import create_engine, MetaData, Table, Column, Integer, String, Text, DateTime, cast, ARRAY
 import json
 import httpx
+from loguru import logger
 
 class ABCParser(ABC):
     links_path: str
-
-    def __init__(self, links_path: str):
+    logger
+    def __init__(self, links_path: str,logger_path:str):
         self.links_path = links_path
+        logger.add(logger_path, level = "INFO")
+        self.logger = logger
 
     async def run(self, local_path: str = "./downloads"):
         if not os.path.exists(self.links_path):
-            print(f"Файл {self.links_path} не найден!")
+            logger.error(f"Файл {self.links_path} не найден!")
             return
         
         with open(self.links_path, 'r', encoding='utf-8') as f:
             links = [line.strip() for line in f if line.strip()]
-            
             for link in links:
                 try:
                     article = await self.parse(link)
                     await self.save(article, local_path)
                 except Exception as e:
-                    print(f"Ошибка при обработке ссылки {link}: {e}")
+                    continue
 
     @abstractmethod
     async def parse(self, url: str) -> ParsedArticle:
@@ -49,7 +51,7 @@ class ABCParser(ABC):
             download_url = getattr(article.data, 'download_url', None)
             
             if not download_url:
-                print("Нет download_url в статье — пропускаю скачивание.")
+                self.logger.warning(f"Нет download_url в статье {getattr(article.data, 'title', 'unknown_title')} — пропускаю скачивание.")
                 return
 
             try:
@@ -63,33 +65,30 @@ class ABCParser(ABC):
                             if chunk:
                                 f.write(chunk)
 
-                    print(f'Файл скачан локально: {local_file_path}')
-
                 # Upload to Yandex.Disk
                 y = yadisk.YaDisk(token=token)
                 if not y.check_token():
-                    print("Токен Яндекс.Диска недействителен.")
+                    self.logger.error("Токен Яндекс.Диска недействителен.")
                     return
                 dest_file_path =  getattr(article.data, 'filename', 'unknown_file')
                 # Если файл уже есть на Яндекс.Диске — пропускаем статью
                 try:
                     if y.exists(dest_file_path):
-                        print(f'Файл уже существует на Яндекс.Диске: {dest_file_path} — пропускаю статью.')
+                        self.logger.info(f'Файл уже существует на Яндекс.Диске: {dest_file_path} — пропускаю статью.')
                         return
                 except Exception as e:
-                    # Если проверка наличия не удалась, попробуем загрузить и обработаем конфликт ниже
-                    print(f'Не удалось проверить существование файла на Диске: {e}')
+                    self.logger.error(f'Не удалось проверить существование файла на Диске: {e}')
 
                 try:
                     y.upload(local_file_path, dest_file_path)
                 except yadisk.exceptions.PathExistsError:
-                    print(f'Файл уже существует на Яндекс.Диске: {dest_file_path} — пропускаю статью.')
+                    self.logger.error(f'Файл уже существует на Яндекс.Диске: {dest_file_path} — пропускаю статью.')
                     return
                 except yadisk.exceptions.ConflictError:
-                    print(f'Конфликт при загрузке (возможно, файл существует): {dest_file_path} — пропускаю статью.')
+                    self.logger.error(f'Конфликт при загрузке (возможно, файл существует): {dest_file_path} — пропускаю статью.')
                     return
 
-                print(f'Файл {local_file_path} загружен на Диск в {dest_file_path}')
+                self.logger.info(f'Статья {getattr(article.data, "title", "unknown_title")} загружена на Диск по пути {dest_file_path}.')
 
                 try:
                     
@@ -114,17 +113,17 @@ class ABCParser(ABC):
                         response = client.post(settings.API_URL, json=insert_values)
                         response.raise_for_status()
 
-                    print('Метаданные статьи отправлены на сервер.')
+                    self.logger.info(f'Метаданные статьи {getattr(article.data, "title", "unknown_title")} отправлены на сервер.')
 
                 except httpx.HTTPStatusError as e:
-                    print(
+                    self.logger.error(
                         f"Ошибка при отправке статьи: "
                         f"{e.response.status_code} — {e.response.text}"
                     )
 
                 except Exception as e:
-                    print(f"Неожиданная ошибка при отправке статьи: {e}")
+                    self.logger.error(f"Неожиданная ошибка при отправке статьи: {e}")
 
             except Exception as e:
-                print(f"Ошибка при скачивании/загрузке файла: {e}")
+                self.logger.error(f"Ошибка при обработке статьи: {e}")
                 return

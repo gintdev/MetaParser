@@ -8,8 +8,13 @@ from article import ArticleData, ParsedArticle
 from config import settings
 import httpx
 from datetime import datetime
+from loguru import logger
 
 class jsonhandler:
+    json_path: str
+    source: str
+    timeout: float
+    logger
     def __init__(
         self,
         json_path: str,
@@ -19,29 +24,35 @@ class jsonhandler:
         self.json_path = Path(json_path)
         self.source = source
         self.timeout = timeout
+        logger.add(f"logs/json_handlers/{self.source}.log", level = "INFO")
+        self.logger = logger
     
     async def read_articles(self) -> List[ParsedArticle]:
-        with open(self.json_path, 'r', encoding = 'utf-8') as f:
-            data = json.load(f)
-            articles = []
-            for item in data:
-                title = item.get('title', '')
-                article_data = ArticleData (
-                    id = 0,
-                    title = title,
-                    source = self.source,
-                    abstract = item.get('abstract', ''),
-                    authors = item.get('authors', []),
-                    keywords = item.get('keywords', []),
-                    published_year = item.get('published_year', 0),
-                    views_count = item.get('views_count', 0),
-                    downloads_count = item.get('downloads_count', 0),
-                    filename = f"{settings.YADISK_FOLDER}/{self.source}/{title}.pdf",
-                    download_url = item.get('download_url', ''),
-                    parsed_at = datetime.now().isoformat()
-                )
-                articles.append(ParsedArticle(data=article_data, pdf_content=b""))
-            return articles
+        try:
+            with open(self.json_path, 'r', encoding = 'utf-8') as f:
+                data = json.load(f)
+                articles = []
+                for item in data:
+                    title = item.get('title', '')
+                    article_data = ArticleData (
+                        id = 0,
+                        title = title,
+                        source = self.source,
+                        abstract = item.get('abstract', ''),
+                        authors = item.get('authors', []),
+                        keywords = item.get('keywords', []),
+                        published_year = item.get('published_year', 0),
+                        views_count = item.get('views_count', 0),
+                        downloads_count = item.get('downloads_count', 0),
+                        filename = f"{settings.YADISK_FOLDER}/{self.source}/{title}.pdf",
+                        download_url = item.get('download_url', ''),
+                        parsed_at = datetime.now().isoformat()
+                    )
+                    articles.append(ParsedArticle(data=article_data, pdf_content=b""))
+                return articles
+        except Exception as e:
+            self.logger.error(f"Ошибка при чтении JSON-файла {self.json_path}: {e}")
+            return []
         
     async def send_article(self, article: ParsedArticle):      
         authors = getattr(article.data, 'author', []) or []
@@ -65,13 +76,13 @@ class jsonhandler:
             with httpx.Client(timeout=10.0) as client:
                 response = client.post(settings.API_URL, json=insert_values)
                 response.raise_for_status()
-            print(f'Метаданные статьи {insert_values["title"]} отправлены на сервер.')
+            self.logger.info(f'Метаданные статьи {insert_values["title"]} отправлены на сервер.')
 
         except httpx.HTTPStatusError as e:
-            print(
+            self.logger.error(
                 f"Ошибка при отправке статьи {insert_values['title']}: "
                 f"{e.response.status_code} — {e.response.text}"
             )
 
         except Exception as e:
-            print(f"Ошибка при отправке статьи {insert_values['title']}: {e}")
+            self.logger.error(f"Ошибка при отправке статьи {insert_values['title']}: {e}")

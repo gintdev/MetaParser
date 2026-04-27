@@ -11,7 +11,10 @@ import asyncio
 
 class CyberleninkaParser(ABCParser):
     async def parse(self, url:str) -> ParsedArticle:
-        return await asyncio.to_thread(self._parse_sync, url)
+        try:
+            return await asyncio.to_thread(self._parse_sync, url)
+        except Exception as e:
+            self.logger.error(f"Ошибка при парсинге статьи по ссылке {url}:\n{e}")
 
     def _parse_sync(self, url:str) -> ParsedArticle:
 
@@ -25,7 +28,7 @@ class CyberleninkaParser(ABCParser):
         driver.quit()
 
         soup = BeautifulSoup(html_content, 'html.parser')
-        
+        source = "Cyberleninka"
         id = 0
 
         published_year = soup.find("time", itemprop="datePublished").text.strip()
@@ -63,18 +66,17 @@ class CyberleninkaParser(ABCParser):
 
         abstract = soup.find("p", {"itemprop": "description"}).text.strip() if soup.find("p", {"itemprop": "description"}) else ""
         
-        filename = f"{settings.YADISK_FOLDER}/Cyberleninka/{title}.pdf" # Как на яндекс дсике
+        filename = f"{settings.YADISK_FOLDER}/{source}/{title}.pdf"
 
         download_url = "https://cyberleninka.ru/article/n/" + soup.find("a", title = 'Скачать')["href"]
 
         parsed_at = datetime.datetime.now().isoformat()
 
         pdf_content = b""
-
         article_data = ArticleData(
             id=id,
             title=title,
-            source = "Cyberleninka",
+            source = source,
             abstract=abstract,
             authors=authors,
             keywords=keywords,
@@ -85,6 +87,8 @@ class CyberleninkaParser(ABCParser):
             download_url=download_url,
             parsed_at=parsed_at
         )
+        
+        self.logger.info(f'Статья "{title}" успешно собрана. Источник: {source}.')
 
         return ParsedArticle(
             data=article_data,
