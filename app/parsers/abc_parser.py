@@ -10,19 +10,19 @@ import requests
 from sqlalchemy import create_engine, MetaData, Table, Column, Integer, String, Text, DateTime, cast, ARRAY
 import json
 import httpx
-from loguru import logger
+from pathlib import Path
+from logging_setup import get_component_logger
 
 class ABCParser(ABC):
     links_path: str
-    logger
     def __init__(self, links_path: str,logger_path:str):
         self.links_path = links_path
-        logger.add(logger_path, level = "INFO")
-        self.logger = logger
+        logger_name = f"parser.{Path(logger_path).stem}"
+        self.logger = get_component_logger(logger_name, logger_path)
 
     async def run(self, local_path: str = "./downloads"):
         if not os.path.exists(self.links_path):
-            logger.error(f"Файл {self.links_path} не найден!")
+            self.logger.error(f"Файл {self.links_path} не найден!")
             return
         
         with open(self.links_path, 'r', encoding='utf-8') as f:
@@ -74,7 +74,7 @@ class ABCParser(ABC):
                 # Если файл уже есть на Яндекс.Диске — пропускаем статью
                 try:
                     if y.exists(dest_file_path):
-                        self.logger.info(f'Файл уже существует на Яндекс.Диске: {dest_file_path} — пропускаю статью.')
+                        self.logger.warning(f'Файл уже существует на Яндекс.Диске: {dest_file_path} — пропускаю статью.')
                         return
                 except Exception as e:
                     self.logger.error(f'Не удалось проверить существование файла на Диске: {e}')
@@ -82,10 +82,10 @@ class ABCParser(ABC):
                 try:
                     y.upload(local_file_path, dest_file_path)
                 except yadisk.exceptions.PathExistsError:
-                    self.logger.error(f'Файл уже существует на Яндекс.Диске: {dest_file_path} — пропускаю статью.')
+                    self.logger.warning(f'Файл уже существует на Яндекс.Диске: {dest_file_path} — пропускаю статью.')
                     return
                 except yadisk.exceptions.ConflictError:
-                    self.logger.error(f'Конфликт при загрузке (возможно, файл существует): {dest_file_path} — пропускаю статью.')
+                    self.logger.warning(f'Конфликт при загрузке (возможно, файл существует): {dest_file_path} — пропускаю статью.')
                     return
 
                 self.logger.info(f'Статья {getattr(article.data, "title", "unknown_title")} загружена на Диск по пути {dest_file_path}.')

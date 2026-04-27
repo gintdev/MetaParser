@@ -8,13 +8,12 @@ from article import ArticleData, ParsedArticle
 from config import settings
 import httpx
 from datetime import datetime
-from loguru import logger
+from logging_setup import get_component_logger
 
 class jsonhandler:
     json_path: str
     source: str
     timeout: float
-    logger
     def __init__(
         self,
         json_path: str,
@@ -24,10 +23,21 @@ class jsonhandler:
         self.json_path = Path(json_path)
         self.source = source
         self.timeout = timeout
-        logger.add(f"logs/json_handlers/{self.source}.log", level = "INFO")
-        self.logger = logger
-    
+        self.logger = get_component_logger(
+            f"json_handler.{self.source}",
+            f"logs/json_handlers/{self.source}.log"
+        )
+        
+    async def run(self):
+        articles = await self.read_articles()
+        for article in articles:
+            try:
+                await self.send_article(article)
+            except Exception as e:
+                continue
+
     async def read_articles(self) -> List[ParsedArticle]:
+        self.logger.info(f"Начинаю чтение статей из JSON-файла источника {self.source}.")
         try:
             with open(self.json_path, 'r', encoding = 'utf-8') as f:
                 data = json.load(f)

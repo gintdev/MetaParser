@@ -116,9 +116,8 @@ class JMPhilParser(ABCParser):
             parsed_at=parsed_at
         )
 
-        self.logger.info(f'Статья "{title}" успешно собрана. Источник: {source}')
+        self.logger.info(f'Статья "{title}" успешно собрана. Источник: {source}.')
 
-        
         return ParsedArticle(
             data=article_data,
             pdf_content=b""

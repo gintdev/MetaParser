@@ -47,9 +47,12 @@ class CyberleninkaParser(ABCParser):
                     authors.append(span.get_text(strip=True))
 
         keywords = []
-        keywords_list = soup.find("i", itemprop="keywords").find_all("span")
-        for keyword in keywords_list:
-            keywords.append(keyword.text.strip())
+        try:
+            keywords_list = soup.find("i", itemprop="keywords").find_all("span")
+            for keyword in keywords_list:
+                keywords.append(keyword.text.strip())
+        except AttributeError as e:
+            keywords = [word for word in title.split(" ") if len(word) > 3]
         # Извлечение количества просмотров
         views_element = soup.find("div", {"class": "statitem views"})
         views_count = 0

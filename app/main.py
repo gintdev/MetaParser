@@ -5,7 +5,7 @@ from parsers.cyberleninka_parser import CyberleninkaParser as cbp
 from parsers.philpapers_parser import PhilpapersParser as ppp
 from parsers.jmphil_parser import JMPhilParser as jmp
 from json_handler import jsonhandler as jh
-from loguru import logger as logger
+from logging_setup import get_component_logger
 
 async def main():
     
@@ -14,8 +14,7 @@ async def main():
     links_dir = os.path.join(project_root, "links")
     jsons_dir = os.path.join(app_root, "jsons")
     downloads_dir = os.path.join(project_root, "downloads")
-    logger.add(os.path.join("logs", "main.log"), level = "INFO")
-    main_logger = logger
+    main_logger = get_component_logger("main", os.path.join("logs", "main.log"))
 
     parsers = [
         cbp(os.path.join(links_dir, "cyberleninka_links.txt"), os.path.join("logs", "parsers", "cyberleninka.log")),
@@ -23,15 +22,15 @@ async def main():
         jmp(os.path.join(links_dir,"jmphil_links.txt"), os.path.join("logs", "parsers", "jmphil.log"))
     ]
     json_handlers = [
-        jh(os.path.join(jsons_dir, "ssrn.json"), "ssrn"),
-        jh(os.path.join(jsons_dir, "jstor.json"), "jstor"),
+        jh(os.path.join(jsons_dir, "ssrn.json"), "SSRN"),
+        jh(os.path.join(jsons_dir, "jstor.json"), "JSTOR"),
     ]
     parser_tasks = [
         asyncio.create_task(parser.run(local_path=downloads_dir), name=parser.__class__.__name__)
         for parser in parsers
     ]
     handler_tasks = [
-        asyncio.create_task(handler.read_articles(), name=f"{handler.__class__.__name__}:{handler.source}")
+        asyncio.create_task(handler.run(), name=f"{handler.__class__.__name__}:{handler.source}")
         for handler in json_handlers
     ]
     tasks = parser_tasks + handler_tasks
